@@ -1,0 +1,6 @@
+L1 = Link('theta',0, 'd', 0.08916, 'a', 0, 'alpha',0,'modified');
+L2 = Link('theta',0, 'd',0, 'a',0, 'alpha', pi/2,'modified');
+L3 = Link('theta',0,'d', 0,'a', 0.425,'alpha', 0,'modified');
+L4 = Link('theta',0,'d', 0.10915,'a', 0.39225,'alpha', 0,'modified');
+L5 = Link('theta',0,'d', 0.09456,'a', 0,'alpha', pi/2,'modified');
+L6 = Link('theta',0 0.0823 0 -pi/2],'modified');
