@@ -1,4 +1,4 @@
-function [ jointVecCurrent ] = ur5_lin_jb( vrep, id, handles, res, startingJoints, threshold, p1, p2, pRot, jointsVec )
+function [ jointVecCurrent,jointVelocityCurrent ] = ur5_lin_jb_torque( vrep, id, handles, res, startingJoints, threshold, p1, p2, pRot, jointsVec,robot )
 %UR5_LIN_JB - Long Qian
 %   Move the UR5 robot linearly with jacobian method
 %   vrep, id, handles, res - VREP related variables
@@ -20,16 +20,29 @@ function [ jointVecCurrent ] = ur5_lin_jb( vrep, id, handles, res, startingJoint
     cartVecTarget = [p2, euler]'; % 目标位姿，欧拉角表示
     cartVecDif = cartVecTarget - cartVecCurrent;
     
+    G = [0 0 9.81];
+    
+    j = 1;
     while ~stopflag
+        jointVec = jointVecCurrent;
         jb_inv = ur5_jacobian_inv(jointVecCurrent);
 %         jointVecTarget = jointVecCurrent + jb_inv * cartVecDif / norm(cartVecDif) * 0.001;
-        jointSpeedCurrent = jb_inv * cartVecDif / norm(cartVecDif);
+        jointSpeedCurrent = jb_inv * cartVecDif / norm(cartVecDif); % LZM
         jointVecTarget = jointVecCurrent + jointSpeedCurrent * 0.001;
-%         jointVecTarget = jointVecCurrent + jb_inv * jointSpeedCurrent * 0.001;
-        jointVecCurrent = ur5_ptp_jnt( vrep, id, handles, res, startingJoints, threshold, jointVecTarget );
+%         jointVecCurrent = ur5_ptp_jnt( vrep, id, handles, res, startingJoints, threshold, jointVecTarget );
+        [jointVecCurrent,jointVelocityCurrent(j,:)] = ur5_ptp_jnt_velocity( vrep, id, handles, res, startingJoints, threshold, jointVecTarget );
         jointVecCurrent = reshape(jointVecCurrent, [6,1]);
         cartVecCurrent = cartvec(ur5fwdtrans(jointVecCurrent, 6));
         cartVecDif = cartVecTarget - cartVecCurrent;
+        
+        % 计算力矩
+%         jb_inv = ur5_jacobian_inv(jointVecCurrent); % LZM
+%         jointSpeedNext = jb_inv * cartVecDif / norm(cartVecDif); % LZM
+%         jointAccCurrent = (jointSpeedNext - jointSpeedCurrent) * 1000;
+%         torque(j,:) = robot.rne(jointVec',jointSpeedCurrent',jointAccCurrent','gravity',G);
+        % 计算力矩结束
+      
+        j = j+1;
         
         stopflag = true;
         

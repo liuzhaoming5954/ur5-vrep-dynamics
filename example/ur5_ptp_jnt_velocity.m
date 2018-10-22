@@ -1,4 +1,4 @@
-function [ currentJoints ] = ur5_ptp_jnt( vrep, id, handles, res, startingJoints, threshold, theta )
+function [ currentJoints,currentVelocity ] = ur5_ptp_jnt_velocity( vrep, id, handles, res, startingJoints, threshold, theta )
 %UR5_PTP - Long Qian
 %   Move the UR5 robot so that the end-effector is at joint vector theta
     targetJointsActual = reshape(theta, [1,6]) + startingJoints;
@@ -18,7 +18,8 @@ function [ currentJoints ] = ur5_ptp_jnt( vrep, id, handles, res, startingJoints
         % Get current joint angles for each joint
         for i = 1:6
             [res, currentJoints(i)] = vrep.simxGetJointPosition(id, handles.ur5Joints(i),...
-                vrep.simx_opmode_oneshot);%vrep.simx_opmode_oneshot_wait);
+                vrep.simx_opmode_oneshot);
+            [res, currentVelocity(i)] = vrep.simxGetObjectFloatParameter(id, handles.ur5Joints(i), 2012,vrep.simx_opmode_oneshot); 
             vrchk(vrep, res, true);
         end
         Gcurrent = ur5fwdtrans(currentJoints-startingJoints, 6);

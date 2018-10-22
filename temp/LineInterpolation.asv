@@ -1,0 +1,116 @@
+% 在笛卡尔空间中计算UR5的直线插补，姿态不变
+% startpoint [x y z]=[0.48 0.1 0.3]
+% endpoint [x y z]=[0.48 -0.1 0.3]
+clear;
+import_ur5;
+% ur5.plot(qz);
+% Tstart = SE3(0.48,0.1,0.3)* SE3.Rz(pi/2)*SE3.Ry(-pi/2);
+% Tend   = SE3(0.48,-0.1,0.3)* SE3.Rx(pi)*SE3.Rz(pi/2);
+
+% T=[0.9992 -0.0274 -0.0274 0.48; 0.0274 0.9996 -0.0008 0.1; 0.0274 0 0.9996 0.3; 0 0 0 1];
+startingJoints = [pi/2, pi/2, 0, pi/2, 0, 0];
+GStart = [0 -1 0 0.48; -1 0 0 0.2; 0 0 -1 0.3; 0 0 0 1];
+GEnd = [0 -1 0 0.48; -1 0 0 -0.2; 0 0 -1 0.3; 0 0 0 1];
+theta = ur5inv(GStart);
+% 从八组解中选出最优解 J
+for ti = 1:8
+    targetJointsActual(ti,:) = theta(:,ti)'+ startingJoints;
+    J(ti) = 0;
+    for tj = 1:6
+        if targetJointsActual(ti,tj) > pi
+            targetJointsActual(ti,tj) = targetJointsActual(ti,tj) - 2*pi;
+        elseif targetJointsActual(ti,tj) < -pi
+            targetJointsActual(ti,tj) = targetJointsActual(ti,tj) + 2*pi;
+        end
+        J(ti) = J(ti) + abs(targetJointsActual(ti,tj) - startingJoints(tj));
+    end
+end
+% mm = min(J);
+% ti = find(J == mm);
+% targetJointsActual = theta(:,ti)'+ startingJoints;
+% for tj = 1:6
+%     if targetJointsActual(tj) > pi
+%         targetJointsActual(tj) = targetJointsActual(tj) - 2*pi;
+%     elseif targetJointsActual(tj) < -pi
+%         targetJointsActual(tj) = targetJointsActual(tj) + 2*pi;
+%     end
+% end
+
+targetJointsActual * 180 ./ pi;
+% 此时已经找出了初始点位
+InitJointsActual = targetJointsActual(3,:);
+
+% 20cm 运动0.5s
+dt = 0.005
+t = 0:dt:1;
+Ts = ctraj(GStart,GEnd,length(t));
+
+% 接下来计算每一个反解点，得出的解距离初始关节角最近即可
+num = length(Ts);
+% 计算位置
+for i = 1:num
+    theata = ur5inv(Ts(:,:,i));
+    Jtheata(i,:) = theata(:,3)';
+    targetJointsActual(i,:) = Jtheata(i,:)+ startingJoints;
+    for tj = 1:6
+        if targetJointsActual(i,tj) > pi
+            targetJointsActual(i,tj) = targetJointsActual(i,tj) - 2*pi;
+        elseif targetJointsActual(i,tj) < -pi
+            targetJointsActual(i,tj) = targetJointsActual(i,tj) + 2*pi;
+        end
+    end
+end
+% 计算速度
+JointsVelocity(1,:) = [0 0 0 0 0 0];
+JointsVelocity(num,:) = [0 0 0 0 0 0];
+for i = 2:num-1
+    JointsVelocity(i,:) = (targetJointsActual(i+1,:)-targetJointsActual(i-1,:))./ (2*dt);
+end
+
+% 计算加速度
+JointsAcc(1,:) = [0 0 0 0 0 0];
+JointsAcc(num,:) = [0 0 0 0 0 0];
+for i = 2:num-1
+    JointsAcc(i,:) = 
+end
+%% 下面开始进行仿真，这里需要先在vrep中启动仿真
+%% initialization stuff
+vrep=remApi('remoteApi');
+vrep.simxFinish(-1);
+id = vrep.simxStart('127.0.0.1', 19997, true, true, 2000, 5);
+if id < 0
+    disp('Failed connecting to remote API server. Exiting.');
+    vrep.delete();
+    return;
+end
+fprintf('Connection %d to remote API server open.\n', id);
+
+%% Construct the joints frame for UR5
+handles = struct('id', id);
+jointNames={'UR5_joint1','UR5_joint2','UR5_joint3','UR5_joint4',...
+    'UR5_joint5','UR5_joint6'};
+ur5Joints = -ones(1,6); 
+for i = 1:6
+    [res, ur5Joints(i)] = vrep.simxGetObjectHandle(id, ...
+        jointNames{i}, vrep.simx_opmode_oneshot_wait); 
+    vrchk(vrep, res);
+end
+handles.ur5Joints = ur5Joints;
+
+% [res, ur5Ref] = vrep.simxGetObjectHandle(id, 'UR5', ...
+%     vrep.simx_opmode_oneshot_wait); 
+% vrchk(vrep, res);
+for n = 1:num
+    res = vrep.simxPauseCommunication(id, true);
+    vrchk(vrep, res);
+    % Set the arm to its starting configuration:
+    for i = 1:6
+        res = vrep.simxSetJointTargetPosition(id, handles.ur5Joints(i),...
+            targetJointsActual(n,i),...
+            vrep.simx_opmode_oneshot);
+        vrchk(vrep, res, true);
+    end
+    res = vrep.simxPauseCommunication(id, false);
+    vrchk(vrep, res);
+end
+

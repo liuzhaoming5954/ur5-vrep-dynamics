@@ -1,18 +1,13 @@
 % ur5_draw.m
 % Author: Long Qian
 % Adapted from Prof. Noah Cowan @Johns Hopkins University
-%% Add path and initialization stuff
-%addpath('..');
-%addpath('../utils', '../vrep', '../ur5');
-
-%% import UR5 model
 clear;
-% ur5_3D = UR5XTree_MDH();
-% ur5_6D = UR5(ur5_3D.E,ur5_3D.r,ur5_3D.inertial);
 import_ur5;
 
+%% Add path and initialization stuff
+addpath('..');
+addpath('../utils', '../vrep', '../ur5');
 
-%% initialization stuff
 vrep=remApi('remoteApi');
 vrep.simxFinish(-1);
 id = vrep.simxStart('127.0.0.1', 19997, true, true, 2000, 5);
@@ -93,11 +88,8 @@ vrep.simxGetPingTime(id); % make sure that all streaming data has reached the cl
 
 res = vrep.simxStartSimulation(id, vrep.simx_opmode_oneshot_wait);
 
-% startingJoints = [pi/2, pi/2, 0, pi/2, 0, 0];
-startingJoints = [-9.109e+1, +6.168e-1, +1.044e+2, -1.504e+1, -9.000e+1, -1.094e+0]*pi/180;
+startingJoints = [pi/2, pi/2, 0, pi/2, 0, 0];
 threshold = 0.005;
-
-qdd=[10 10 10 10 10 10]';
 
 
 %% Initializing the drawing plane
@@ -117,7 +109,7 @@ pRot = [xdir/norm(xdir); ydir/norm(ydir); zdir/norm(zdir)]';
 % (0, 0) is the leftup corner
 % (1, 0) is the rightup corner
 % (0, 1) is the leftdown corner
-numLines = 10;
+numLines = 1;
 lines = zeros(4,numLines);
 for k = 1:numLines
     lines(1,k) = 0;
@@ -139,21 +131,24 @@ for k = 1:numLines
     GPostEnd = G(pRot, pPostEnd);
     
     % Move the robot to the GPreStart configuration
-    % movef( id, vrep, GStart, handles.FrameEndTarget, handles.base);
-    %jointsVec = ur5_ptp_cart( vrep, id, handles, res, startingJoints, threshold, GPreStart );
-    jointsVec = startingJoints;
+    movef( id, vrep, GStart, handles.FrameEndTarget, handles.base);
+%     jointsVec = ur5_ptp_cart( vrep, id, handles, res, startingJoints, threshold, GPreStart );
+    jointsVec = ur5_ptp_cart( vrep, id, handles, res, startingJoints, threshold, GStart );
     % Move the robot linearly down the touch point
     fprintf('Moving Down to the plane.\n');
-    % jointsVec = ur5_lin_jb( vrep, id, handles, res, startingJoints, threshold, pPreStart, pStart, pRot, jointsVec );
-    jointsVec = ur5_lin_jb_tor( vrep, id, handles, res, startingJoints, threshold, pPreStart, pStart, pRot, jointsVec, qdd, ur5);
+    jointsVec = ur5_lin_jb( vrep, id, handles, res, startingJoints, threshold, pPreStart, pStart, pRot, jointsVec );
     % Move the robot linearly to the end point of the line
     movef( id, vrep, GEnd, handles.FrameEndTarget, handles.base);
     fprintf('Moving to the end point.\n');
-    %jointsVec = ur5_lin_jb( vrep, id, handles, res, startingJoints, threshold, pStart, pEnd, pRot, jointsVec );
-    jointsVec = ur5_lin_jb_tor( vrep, id, handles, res, startingJoints, threshold, pStart, pEnd, pRot, jointsVec, qdd, ur5);
+    % test
+    pEnd = [0.48 -0.2 0.3];
+    % test end
+    % jointsVec = ur5_lin_jb( vrep, id, handles, res, startingJoints, threshold, pStart, pEnd, pRot, jointsVec );
+    [ jointVecCurrent,jointVelocityCurrent ]=ur5_lin_jb_torque(  vrep, id, handles, res, startingJoints, threshold, pStart, pEnd, pRot, jointsVec ,ur5 );
+%     [jointsVec,torque] = ur5_lin_jb( vrep, id, handles, res, startingJoints, threshold, pStart, pEnd, pRot, jointsVec, ur5 ); % LZM
     % Move the robot up to leave the drawing plane
-    fprintf('Moving up the leave the plane.\n');
-    jointsVec = ur5_lin_jb( vrep, id, handles, res, startingJoints, threshold, pEnd, pPostEnd, pRot, jointsVec );
+%     fprintf('Moving up the leave the plane.\n');
+%     jointsVec = ur5_lin_jb( vrep, id, handles, res, startingJoints, threshold, pEnd, pPostEnd, pRot, jointsVec );
     
     pause(1);
 end
@@ -186,8 +181,3 @@ end
 %% Delete useless frames
 vrep.simxRemoveObject(id, handles.FrameEnd, vrep.simx_opmode_oneshot);
 vrep.simxRemoveObject(id, handles.FrameEndTarget, vrep.simx_opmode_oneshot);
-
-
-
-
-
